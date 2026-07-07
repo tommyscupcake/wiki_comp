@@ -1,0 +1,24 @@
+ai-studio-applet@0.1.0 /app/applet
+├─┬ @hookform/resolvers@5.4.0
+│ └─┬ react-hook-form@7.81.0
+│   └── react@19.2.7 deduped
+├─┬ @tiptap/react@3.27.2
+│ ├── react@19.2.7 deduped
+│ └─┬ use-sync-external-store@1.6.0
+│   └── react@19.2.7 deduped
+├─┬ lucide-react@0.553.0
+│ └── react@19.2.7 deduped
+├─┬ motion@12.42.2
+│ ├─┬ framer-motion@12.42.2
+│ │ └── react@19.2.7 deduped
+│ └── react@19.2.7 deduped
+├─┬ next@15.5.20
+│ ├── react@19.2.7 deduped
+│ └─┬ styled-jsx@5.1.6
+│   └── react@19.2.7 deduped
+├─┬ react-dom@19.2.7
+│ └── react@19.2.7 deduped
+├── react@19.2.7
+└─┬ zustand@5.0.14
+  └── react@19.2.7 deduped
+

@@ -1,0 +1,282 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #020617;
+    color: #f1f5f9;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* Custom Editor Styling Layer */
+.tiptap {
+  outline: none;
+}
+
+.tiptap p {
+  margin-bottom: 0.75rem;
+  line-height: 1.625;
+}
+
+.tiptap h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: #f8fafc;
+}
+
+.tiptap h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  color: #f1f5f9;
+}
+
+.tiptap h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #e2e8f0;
+}
+
+/* Tiptap White Paper Mode */
+.tiptap-paper h1 {
+  color: #0f172a !important;
+}
+
+.tiptap-paper h2 {
+  color: #1e293b !important;
+}
+
+.tiptap-paper h3 {
+  color: #334155 !important;
+}
+
+.tiptap-paper p, .tiptap-paper div {
+  color: #334155 !important;
+}
+
+/* -- 1. Standard Lists (Native Block Layout Only) -- */
+.tiptap ul, 
+.tiptap ol {
+  padding-left: 1.5rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.tiptap ul {
+  list-style-type: disc;
+}
+
+.tiptap ol {
+  list-style-type: decimal;
+}
+
+.tiptap li {
+  /* CRITICAL: DO NOT USE FLEXBOX HERE */
+  margin-bottom: 0.25em;
+}
+
+.tiptap li > p {
+  /* CRITICAL: DO NOT USE INLINE HERE */
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+/* -- 2. Task Lists (Official Safe Flexbox) -- */
+.tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+}
+
+.tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.tiptap ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+}
+
+.tiptap ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+
+.tiptap ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+.tiptap ul[data-type="taskList"] input[type="checkbox"] {
+  cursor: pointer;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 0.25rem;
+  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-top: 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.tiptap ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: #6366f1;
+  border-color: #6366f1;
+}
+
+.tiptap ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  top: 1px;
+}
+
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* Image Extension Styles */
+.tiptap img {
+  max-width: 100%;
+  height: auto;
+  transition: box-shadow 0.2s ease;
+}
+.ProseMirror-selectednode img {
+  outline: 3px solid #3b82f6; /* Blue outline when clicked */
+}
+
+.tiptap pre {
+  background: #0f172a; /* Slate 900 */
+  color: #e2e8f0;    /* Slate 200 */
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Courier, monospace;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  border: 1px solid #334155; /* Slate 700 */
+}
+
+.tiptap pre code {
+  color: inherit;
+  padding: 0;
+  background: none;
+  font-size: 0.875rem; /* text-sm */
+}
+
+.tiptap blockquote {
+  border-left: 3px solid #475569; /* Slate 600 */
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: #94a3b8; /* Slate 400 */
+  background: rgba(15, 23, 42, 0.3); /* Slight Slate 900 tint for emphasis */
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-top-right-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.tiptap blockquote p {
+  margin: 0; /* Remove default paragraph margins inside the quote */
+}
+
+/* The standard grey placeholder when the editor is completely empty */
+.tiptap .is-editor-empty:first-child::before {
+  color: #94a3b8; /* Tailwind slate-400 */
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-style: italic;
+}
+
+/* CRITICAL: Hide the placeholder the instant the user clicks (focuses) the editor */
+.tiptap:focus .is-editor-empty:first-child::before,
+.tiptap:focus-within .is-editor-empty:first-child::before,
+.ProseMirror-focused .is-editor-empty:first-child::before {
+  content: none;
+  display: none;
+}
+
+/* --- TIPTAP IMAGE & RESIZER CONSTRAINTS --- */
+.ProseMirror img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.ProseMirror [data-node-view-wrapper] {
+  max-width: 100% !important;
+}
+
+/* Ensure editor text elements render above background/free-aligned images by default */
+.ProseMirror p,
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6,
+.ProseMirror ul,
+.ProseMirror ol,
+.ProseMirror blockquote,
+.ProseMirror pre,
+.ProseMirror hr {
+  position: relative;
+  z-index: 10;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+/* Prevent Tiptap ProseMirror from having any scrollbar and make it overflow-visible */
+.ProseMirror {
+  overflow: visible !important;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  height: auto !important;
+  min-height: 100% !important;
+}
+
+/* Hide all scrollbars in the entire editor wrapper */
+#editor-content-wrapper,
+#editor-content-wrapper *,
+.ProseMirror,
+.ProseMirror * {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important;  /* IE and Edge */
+}
+
+#editor-content-wrapper::-webkit-scrollbar,
+#editor-content-wrapper *::-webkit-scrollbar,
+.ProseMirror::-webkit-scrollbar,
+.ProseMirror *::-webkit-scrollbar {
+  display: none !important; /* Safari, Chrome, Opera */
+}
+
+

@@ -1,0 +1,29 @@
+const WikiEditor = React.forwardRef<WikiEditorRef, WikiEditorProps>(({
+  content,
+  onChange,
+  readOnly = false,
+  activeDocument = null,
+  zoomLevel = 100,
+}, ref) => {
+  const lastUpdateFromEditorRef = useRef<string | null>(content);
+  const isLocalChangeRef = useRef(false);
+  const prevDocIdRef = useRef<string | null>(activeDocument?.id || null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const lowlight = createLowlight(common);
+
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      Placeholder.configure({
+        placeholder: 'Start your document here...',
+        emptyEditorClass: 'is-editor-empty',
+      }),
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3],

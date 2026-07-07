@@ -1,0 +1,6 @@
+{
+  "name": "Enterprise Wiki",
+  "description": "An enterprise-grade collaborative document workspace featuring a schema-based Tiptap rich-text editor with strict focus retention, folder configurations, markdown importing/exporting, and live article analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
