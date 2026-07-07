@@ -1,5 +1,5 @@
 import { getPool } from './pool';
-import { DbUser, NewDbUser } from './types';
+import { DbUser, NewDbUser, UserUpdateFields } from './types';
 
 export const softDeleteTeamDb = async (teamId: string): Promise<{ success: boolean; error?: string }> => {
   try {
@@ -51,6 +51,11 @@ export const getUserByUsernameDb = async (username: string): Promise<DbUser | nu
   const result = await getPool().query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username]);
   if (result.rowCount === 0) return null;
   return rowToDbUser(result.rows[0]);
+};
+
+export const listUsersDb = async (): Promise<DbUser[]> => {
+  const result = await getPool().query('SELECT * FROM users ORDER BY created_at ASC');
+  return result.rows.map(rowToDbUser);
 };
 
 export const createUserDb = async (user: NewDbUser): Promise<{ success: boolean; error?: string; user?: DbUser }> => {
@@ -106,6 +111,75 @@ export const setRequiresPasswordChangeDb = async (
     return { success: true };
   } catch (err) {
     console.error('setRequiresPasswordChangeDb failed:', err);
+    return { success: false, error: 'Database error' };
+  }
+};
+
+export const updateUserDb = async (
+  userId: string,
+  updates: UserUpdateFields
+): Promise<{ success: boolean; error?: string; user?: DbUser }> => {
+  const fields: string[] = [];
+  const values: any[] = [];
+  let i = 1;
+
+  if (updates.username !== undefined) { fields.push(`username = $${i++}`); values.push(updates.username); }
+  if (updates.email !== undefined) { fields.push(`email = $${i++}`); values.push(updates.email); }
+  if (updates.role !== undefined) { fields.push(`role = $${i++}`); values.push(updates.role); }
+  if (updates.status !== undefined) { fields.push(`status = $${i++}`); values.push(updates.status); }
+  if (updates.profilePic !== undefined) { fields.push(`profile_pic = $${i++}`); values.push(updates.profilePic); }
+
+  if (fields.length === 0) {
+    return { success: false, error: 'No fields to update' };
+  }
+
+  values.push(userId);
+
+  try {
+    const result = await getPool().query(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,
+      values
+    );
+    if (result.rowCount === 0) {
+      return { success: false, error: 'User not found' };
+    }
+    return { success: true, user: rowToDbUser(result.rows[0]) };
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return { success: false, error: 'Username or email already exists' };
+    }
+    console.error('updateUserDb failed:', err);
+    return { success: false, error: 'Database error' };
+  }
+};
+
+export const deleteUserDb = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const result = await getPool().query('DELETE FROM users WHERE id = $1', [userId]);
+    if (result.rowCount === 0) {
+      return { success: false, error: 'User not found' };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('deleteUserDb failed:', err);
+    return { success: false, error: 'Database error' };
+  }
+};
+
+export const incrementSessionVersionDb = async (
+  userId: string
+): Promise<{ success: boolean; error?: string; sessionVersion?: number }> => {
+  try {
+    const result = await getPool().query(
+      'UPDATE users SET session_version = session_version + 1 WHERE id = $1 RETURNING session_version',
+      [userId]
+    );
+    if (result.rowCount === 0) {
+      return { success: false, error: 'User not found' };
+    }
+    return { success: true, sessionVersion: result.rows[0].session_version };
+  } catch (err) {
+    console.error('incrementSessionVersionDb failed:', err);
     return { success: false, error: 'Database error' };
   }
 };

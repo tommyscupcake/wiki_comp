@@ -23,3 +23,11 @@ export function toSafeUser(user: DbUser) {
   const { passwordHash, ...safe } = user;
   return safe;
 }
+
+export interface UserUpdateFields {
+  username?: string;
+  email?: string;
+  role?: 'ADMIN' | 'CREATOR' | 'VIEWER';
+  status?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+  profilePic?: string | null;
+}

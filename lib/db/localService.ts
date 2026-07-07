@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { hashPassword } from '../auth';
-import { DbUser, NewDbUser } from './types';
+import { DbUser, NewDbUser, UserUpdateFields } from './types';
 
 const DB_PATH = path.join(process.cwd(), 'database.json');
 
@@ -96,6 +96,11 @@ export const getUserByUsernameDb = async (username: string): Promise<DbUser | nu
   return found ? rowToDbUser(found) : null;
 };
 
+export const listUsersDb = async (): Promise<DbUser[]> => {
+  const db = await readLocalDb();
+  return db.users.map(rowToDbUser);
+};
+
 export const createUserDb = async (user: NewDbUser): Promise<{ success: boolean; error?: string; user?: DbUser }> => {
   const db = await readLocalDb();
   const exists = db.users.some((u: any) => u.username?.toLowerCase() === user.username.toLowerCase());
@@ -141,4 +146,48 @@ export const setRequiresPasswordChangeDb = async (
   db.users[idx] = { ...db.users[idx], requiresPasswordChange };
   await writeLocalDb(db);
   return { success: true };
+};
+
+export const updateUserDb = async (
+  userId: string,
+  updates: UserUpdateFields
+): Promise<{ success: boolean; error?: string; user?: DbUser }> => {
+  const db = await readLocalDb();
+  const idx = db.users.findIndex((u: any) => u.id === userId);
+  if (idx === -1) return { success: false, error: 'User not found' };
+
+  if (updates.username !== undefined || updates.email !== undefined) {
+    const clash = db.users.some((u: any, i: number) =>
+      i !== idx && (
+        (updates.username !== undefined && u.username?.toLowerCase() === updates.username.toLowerCase()) ||
+        (updates.email !== undefined && u.email?.toLowerCase() === updates.email.toLowerCase())
+      )
+    );
+    if (clash) return { success: false, error: 'Username or email already exists' };
+  }
+
+  db.users[idx] = { ...db.users[idx], ...updates };
+  await writeLocalDb(db);
+  return { success: true, user: rowToDbUser(db.users[idx]) };
+};
+
+export const deleteUserDb = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+  const db = await readLocalDb();
+  const idx = db.users.findIndex((u: any) => u.id === userId);
+  if (idx === -1) return { success: false, error: 'User not found' };
+  db.users.splice(idx, 1);
+  await writeLocalDb(db);
+  return { success: true };
+};
+
+export const incrementSessionVersionDb = async (
+  userId: string
+): Promise<{ success: boolean; error?: string; sessionVersion?: number }> => {
+  const db = await readLocalDb();
+  const idx = db.users.findIndex((u: any) => u.id === userId);
+  if (idx === -1) return { success: false, error: 'User not found' };
+  const nextVersion = (db.users[idx].sessionVersion || 1) + 1;
+  db.users[idx] = { ...db.users[idx], sessionVersion: nextVersion };
+  await writeLocalDb(db);
+  return { success: true, sessionVersion: nextVersion };
 };

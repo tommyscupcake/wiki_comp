@@ -1596,17 +1596,33 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
     loadFromServer: async () => {
       if (!isClient) return;
       try {
-        const res = await fetch('/api/vfs');
-        const json = await res.json();
+        const [vfsRes, usersRes] = await Promise.all([
+          fetch('/api/vfs'),
+          fetch('/api/auth/users'),
+        ]);
+        const json = await vfsRes.json();
+        const usersJson = await usersRes.json().catch(() => null);
+        // The users table is the source of truth for user records; the vfs
+        // blob's copy of users.json is legacy/local-mode-only and can be stale.
+        const liveUsers = usersJson?.success ? usersJson.users : null;
+
         if (json.exists && json.data) {
+          const users = liveUsers || json.data.users || [];
+          const virtualFileSystem = json.data.virtualFileSystem || get().virtualFileSystem;
           originalSet({
-            users: json.data.users || [],
+            users,
             documents: json.data.documents || [],
             teams: json.data.teams || [],
             auditLogs: json.data.auditLogs || [],
-            virtualFileSystem: json.data.virtualFileSystem || get().virtualFileSystem
+            virtualFileSystem: { ...virtualFileSystem, 'users.json': users }
           });
         } else {
+          if (liveUsers) {
+            originalSet({
+              users: liveUsers,
+              virtualFileSystem: { ...get().virtualFileSystem, 'users.json': liveUsers }
+            });
+          }
           saveToServer();
         }
       } catch (err) {

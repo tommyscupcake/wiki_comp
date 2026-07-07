@@ -69,21 +69,48 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
     return { success: true };
   };
 
-  const handleDeleteUser = (id: string) => {
+  const handleDeleteUser = async (id: string) => {
+    const res = await fetch(`/api/auth/users/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) return { success: false, error: data.error };
     writeFile('users.json', users.filter((u: User) => u.id !== id));
     return { success: true };
   };
 
-  const handleUpdateUserRole = (userId: string, role: 'ADMIN' | 'CREATOR' | 'VIEWER') => {
+  const handleUpdateUserRole = async (userId: string, role: 'ADMIN' | 'CREATOR' | 'VIEWER') => {
+    const res = await fetch(`/api/auth/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    const data = await res.json();
+    if (!data.success) return { success: false, error: data.error };
     writeFile('users.json', users.map((u: User) => u.id === userId ? { ...u, role } : u));
+    return { success: true };
   };
 
-  const handleUpdateUserStatus = (userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'BANNED') => {
+  const handleUpdateUserStatus = async (userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'BANNED') => {
+    const res = await fetch(`/api/auth/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!data.success) return { success: false, error: data.error };
     writeFile('users.json', users.map((u: User) => u.id === userId ? { ...u, status } : u));
+    return { success: true };
   };
 
-  const handleUpdateUserProfile = (userId: string, updates: any) => {
+  const handleUpdateUserProfile = async (userId: string, updates: any) => {
+    const res = await fetch(`/api/auth/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!data.success) return { success: false, error: data.error };
     writeFile('users.json', users.map((u: User) => u.id === userId ? { ...u, ...updates } : u));
+    return { success: true };
   };
 
   const handleResetUserPassword = async (userId: string, newPassword: string | undefined, forceChange: boolean) => {
@@ -98,8 +125,12 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
     return { success: true };
   };
 
-  const handleRevokeUserSessions = (userId: string) => {
-    writeFile('users.json', users.map((u: User) => u.id === userId ? { ...u, sessionVersion: (u.sessionVersion || 1) + 1 } : u));
+  const handleRevokeUserSessions = async (userId: string) => {
+    const res = await fetch(`/api/auth/users/${userId}/revoke-sessions`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) return { success: false, error: data.error };
+    writeFile('users.json', users.map((u: User) => u.id === userId ? { ...u, sessionVersion: data.sessionVersion } : u));
+    return { success: true };
   };
 
   // Search & Filter state
@@ -236,7 +267,7 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
     }
 
     // Update Profile
-    handleUpdateUserProfile(editingUser.id, {
+    await handleUpdateUserProfile(editingUser.id, {
       username: editUsername.trim(),
       email: editEmail.trim() || `${editUsername.trim()}@enterprise.wiki`,
       role: editRole,
@@ -245,7 +276,7 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
 
     // Update Status
     if (editingUser.id !== currentUser.id) {
-      handleUpdateUserStatus(editingUser.id, editStatus);
+      await handleUpdateUserStatus(editingUser.id, editStatus);
     }
 
     // Smart Passwords Manual reset / force change logic
@@ -269,10 +300,14 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
   };
 
   // 4. Session Revocation (individual)
-  const handleRevokeSessionIndividual = (userId: string, username: string) => {
+  const handleRevokeSessionIndividual = async (userId: string, username: string) => {
     if (!currentUser) return;
     if (confirm(`Are you sure you want to terminate all active login sessions for "${username}"? They will be logged out immediately.`)) {
-      handleRevokeUserSessions(userId);
+      const res = await handleRevokeUserSessions(userId);
+      if (!res.success) {
+        showToast(res.error || `Failed to revoke sessions for "${username}"`);
+        return;
+      }
       handleAddAuditLog(currentUser.id, 'SESSION_REVOKE', `Revoked all active sessions for account "${username}".`, userId);
       showToast(`Sessions revoked for "${username}"`);
       if (editingUser && editingUser.id === userId) {
@@ -306,7 +341,7 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
   };
 
   // 6. Delete User Individual
-  const handleDeleteIndividual = (id: string, name: string) => {
+  const handleDeleteIndividual = async (id: string, name: string) => {
     if (!currentUser) return;
     if (id === currentUser.id) {
       alert('You cannot delete your own admin account.');
@@ -314,11 +349,13 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
     }
 
     if (confirm(`Are you sure you want to permanently delete user "${name}"? This action cannot be undone.`)) {
-      const res = handleDeleteUser(id);
+      const res = await handleDeleteUser(id);
       if (res.success) {
         handleAddAuditLog(currentUser.id, 'USER_DELETE', `Permanently deleted user account "${name}".`, id);
         showToast(`User "${name}" deleted successfully`);
         setSelectedUserIds(prev => prev.filter((uid: string) => uid !== id));
+      } else {
+        showToast(res.error || `Failed to delete user "${name}"`);
       }
     }
   };
@@ -351,7 +388,7 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
     );
   };
 
-  const executeBulkAction = (actionType: 'DELETE' | 'SUSPEND' | 'BAN' | 'REVOKE_SESSIONS' | 'MAKE_ADMIN' | 'MAKE_CREATOR' | 'MAKE_VIEWER') => {
+  const executeBulkAction = async (actionType: 'DELETE' | 'SUSPEND' | 'BAN' | 'REVOKE_SESSIONS' | 'MAKE_ADMIN' | 'MAKE_CREATOR' | 'MAKE_VIEWER') => {
     if (!currentUser) return;
     if (selectedUserIds.length === 0) return;
 
@@ -376,36 +413,39 @@ export function AdminUsersPageContent({ isTabbed = false }: { isTabbed?: boolean
 
     if (!confirm(message)) return;
 
-    selectedUserIds.forEach((id: string) => {
+    let failures = 0;
+    for (const id of selectedUserIds) {
       const u = users.find((x: any) => x.id === id);
-      if (!u || u.id === currentUser.id) return;
+      if (!u || u.id === currentUser.id) continue;
 
+      let res: { success: boolean; error?: string } = { success: true };
       if (actionType === 'DELETE') {
-        handleDeleteUser(id);
-        handleAddAuditLog(currentUser.id, 'USER_DELETE', `Bulk deleted user account "${u.username}".`, id);
+        res = await handleDeleteUser(id);
+        if (res.success) handleAddAuditLog(currentUser.id, 'USER_DELETE', `Bulk deleted user account "${u.username}".`, id);
       } else if (actionType === 'SUSPEND') {
-        handleUpdateUserStatus(id, 'SUSPENDED');
-        handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk suspended user account "${u.username}".`, id);
+        res = await handleUpdateUserStatus(id, 'SUSPENDED');
+        if (res.success) handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk suspended user account "${u.username}".`, id);
       } else if (actionType === 'BAN') {
-        handleUpdateUserStatus(id, 'BANNED');
-        handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk banned user account "${u.username}".`, id);
+        res = await handleUpdateUserStatus(id, 'BANNED');
+        if (res.success) handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk banned user account "${u.username}".`, id);
       } else if (actionType === 'REVOKE_SESSIONS') {
-        handleRevokeUserSessions(id);
-        handleAddAuditLog(currentUser.id, 'SESSION_REVOKE', `Bulk revoked active sessions for "${u.username}".`, id);
+        res = await handleRevokeUserSessions(id);
+        if (res.success) handleAddAuditLog(currentUser.id, 'SESSION_REVOKE', `Bulk revoked active sessions for "${u.username}".`, id);
       } else if (actionType === 'MAKE_ADMIN') {
-        handleUpdateUserRole(id, 'ADMIN');
-        handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk promoted "${u.username}" to ADMIN.`, id);
+        res = await handleUpdateUserRole(id, 'ADMIN');
+        if (res.success) handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk promoted "${u.username}" to ADMIN.`, id);
       } else if (actionType === 'MAKE_CREATOR') {
-        handleUpdateUserRole(id, 'CREATOR');
-        handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk updated "${u.username}" to CREATOR.`, id);
+        res = await handleUpdateUserRole(id, 'CREATOR');
+        if (res.success) handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk updated "${u.username}" to CREATOR.`, id);
       } else if (actionType === 'MAKE_VIEWER') {
-        handleUpdateUserRole(id, 'VIEWER');
-        handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk updated "${u.username}" to VIEWER.`, id);
+        res = await handleUpdateUserRole(id, 'VIEWER');
+        if (res.success) handleAddAuditLog(currentUser.id, 'USER_UPDATE', `Bulk updated "${u.username}" to VIEWER.`, id);
       }
-    });
+      if (!res.success) failures++;
+    }
 
     setSelectedUserIds([]);
-    showToast(`Bulk action applied to ${count} accounts.`);
+    showToast(failures === 0 ? `Bulk action applied to ${count} accounts.` : `Bulk action applied with ${failures} failure(s) out of ${count}.`);
   };
 
   // 8. CSV Export

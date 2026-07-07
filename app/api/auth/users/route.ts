@@ -7,6 +7,16 @@ export const dynamic = 'force-dynamic';
 
 const VALID_ROLES = ['ADMIN', 'CREATOR', 'VIEWER'];
 
+export async function GET() {
+  try {
+    const users = await db.listUsersDb();
+    return NextResponse.json({ success: true, users: users.map(toSafeUser) });
+  } catch (err) {
+    console.error('List users failed:', err instanceof Error ? err.message : 'unknown error');
+    return NextResponse.json({ success: false, error: 'Failed to list users' }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: any;
   try {
