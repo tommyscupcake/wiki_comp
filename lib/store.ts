@@ -116,8 +116,10 @@ interface WikiState {
   teams: Team[];
   auditLogs: AuditLog[];
   notifications: Notification[];
+  syncWarning: { level: 'error' | 'warning'; message: string } | null;
 
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => void;
+  clearSyncWarning: () => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: (userId: string) => void;
   clearNotifications: (userId: string) => void;
@@ -458,7 +460,22 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).catch(err => console.error('Failed to sync to server database:', err));
+    })
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok || json?.success === false) {
+          set({ syncWarning: { level: 'error', message: json?.error || 'Failed to save changes to the server.' } });
+          return;
+        }
+        if (Array.isArray(json?.warnings) && json.warnings.length > 0) {
+          const message = json.warnings.map((w: any) => w.message).join(' ');
+          set({ syncWarning: { level: 'warning', message } });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to sync to server database:', err);
+        set({ syncWarning: { level: 'error', message: 'Failed to save changes to the server.' } });
+      });
     }, 500);
   };
 
@@ -626,6 +643,9 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
     teams: getStoredTeams(isClient),
     auditLogs: getStoredAuditLogs(isClient),
     notifications: getStoredNotifications(isClient),
+    syncWarning: null,
+
+    clearSyncWarning: () => set({ syncWarning: null }),
 
     addNotification: (notification) => {
       set((state) => {

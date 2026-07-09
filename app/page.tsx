@@ -68,6 +68,14 @@ export default function WikiPageStage() {
   const markNotificationAsRead = useWikiStore(state => state.markNotificationAsRead);
   const markAllNotificationsAsRead = useWikiStore(state => state.markAllNotificationsAsRead);
   const clearNotifications = useWikiStore(state => state.clearNotifications);
+  const syncWarning = useWikiStore(state => state.syncWarning);
+  const clearSyncWarning = useWikiStore(state => state.clearSyncWarning);
+
+  useEffect(() => {
+    if (!syncWarning) return;
+    const timer = setTimeout(() => clearSyncWarning(), 8000);
+    return () => clearTimeout(timer);
+  }, [syncWarning, clearSyncWarning]);
 
   const [activePageId, setActivePageId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -971,6 +979,28 @@ Task instruction: Perform the modification directly on the HTML document above. 
 
   return (
     <div className="h-screen w-screen bg-slate-950 text-slate-100 flex p-3 md:p-4 gap-3 md:gap-4 overflow-hidden font-sans relative">
+      {/* Document save warning/error toast */}
+      <AnimatePresence>
+        {syncWarning && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-lg px-4 py-2.5 border text-xs rounded-xl shadow-lg flex items-start gap-2 ${
+              syncWarning.level === 'error'
+                ? 'bg-slate-900 border-red-500/30 text-red-400'
+                : 'bg-slate-900 border-amber-500/30 text-amber-400'
+            }`}
+          >
+            <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+            <span className="font-semibold flex-1">{syncWarning.message}</span>
+            <button onClick={clearSyncWarning} className="text-slate-500 hover:text-slate-300 flex-shrink-0">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Off-screen/In-screen Sidebar Drawer */}
       <AnimatePresence initial={false}>
         {isSidebarOpen && (

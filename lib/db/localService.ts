@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { hashPassword } from '../auth';
-import { DbUser, NewDbUser, UserUpdateFields } from './types';
+import { DbUser, NewDbUser, UserUpdateFields, DbDocumentSync, SyncDocumentsResult } from './types';
 
 const DB_PATH = path.join(process.cwd(), 'database.json');
 
@@ -190,4 +190,10 @@ export const incrementSessionVersionDb = async (
   db.users[idx] = { ...db.users[idx], sessionVersion: nextVersion };
   await writeLocalDb(db);
   return { success: true, sessionVersion: nextVersion };
+};
+
+export const syncDocumentsDb = async (_documents: DbDocumentSync[]): Promise<SyncDocumentsResult> => {
+  // Local mode's database.json already stores documents verbatim via the
+  // full-state write in app/api/vfs/route.ts — nothing extra to do here.
+  return { success: true };
 };

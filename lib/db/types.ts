@@ -31,3 +31,32 @@ export interface UserUpdateFields {
   status?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
   profilePic?: string | null;
 }
+
+// Loose shape for the document-sync payload coming from the client's full-state
+// POST to /api/vfs. Kept permissive (fields optional) since it's parsed from
+// arbitrary JSON, not constructed server-side.
+export interface DbDocumentSync {
+  id: string;
+  title?: string;
+  content?: string;
+  ownerId?: string | null;
+  visibility?: 'PRIVATE' | 'WORKSPACE' | 'PUBLIC';
+  isDeleted?: boolean;
+  collaborators?: { userId: string; access: 'READ' | 'WRITE' }[];
+  teamCollaborators?: { teamId: string; access: 'READ' | 'WRITE' }[];
+  sharedWith?: { userId: string; role: string }[];
+  history?: { versionId: string; timestamp: string; content: string; authorId?: string; name?: string }[];
+  comments?: { commentId: string; text: string; authorId?: string; targetText?: string; timestamp: string }[];
+}
+
+export interface DbDocumentSyncWarning {
+  documentId: string;
+  message: string;
+}
+
+export interface SyncDocumentsResult {
+  success: boolean;
+  error?: string;
+  failedIds?: string[];
+  warnings?: DbDocumentSyncWarning[];
+}

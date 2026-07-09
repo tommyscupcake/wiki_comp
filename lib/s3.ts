@@ -33,3 +33,13 @@ export async function getObject(key: string) {
     })
   );
 }
+
+// Best-effort JSON backup of a document's content, written alongside (not
+// instead of) the Postgres save. Callers must catch/log failures themselves —
+// this never blocks or fails a document save.
+export async function backupDocumentToS3(doc: { id: string; [key: string]: unknown }): Promise<void> {
+  if (!doc?.id) return;
+  const key = `documents/${doc.id}/${Date.now()}.json`;
+  const body = Buffer.from(JSON.stringify(doc, null, 2), 'utf-8');
+  await uploadObject(key, body, 'application/json');
+}

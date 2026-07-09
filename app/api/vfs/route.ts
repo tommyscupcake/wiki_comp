@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { db } from '@/lib/db';
+import { backupDocumentToS3 } from '@/lib/s3';
 
 const DB_PATH = path.join(process.cwd(), 'database.json');
 
@@ -66,6 +68,38 @@ export async function POST(req: NextRequest) {
     };
 
     await fs.writeFile(DB_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+
+    if (Array.isArray(body.documents) && body.documents.length > 0) {
+      // Postgres is authoritative for document content (title/content). This
+      // must succeed for the save to count as successful.
+      const syncResult = await db.syncDocumentsDb(body.documents);
+      if (!syncResult.success) {
+        console.error('Failed to persist documents to Postgres:', syncResult.error);
+        return NextResponse.json(
+          { success: false, error: syncResult.error || 'Database error', warnings: syncResult.warnings },
+          { status: 500 }
+        );
+      }
+
+      // S3 backup is best-effort and must never block or fail the response.
+      if (process.env.STORAGE_MODE === 's3') {
+        await Promise.all(
+          body.documents.map((doc: any) =>
+            backupDocumentToS3(doc).catch((err) =>
+              console.warn(`S3 backup failed for document ${doc?.id}:`, err instanceof Error ? err.message : err)
+            )
+          )
+        );
+      }
+
+      if (syncResult.warnings && syncResult.warnings.length > 0) {
+        // Sync partially succeeded: content is saved, but some relational
+        // data (e.g. team sharing) couldn't be persisted. Surface this to the
+        // client instead of only logging it server-side.
+        return NextResponse.json({ success: true, warnings: syncResult.warnings });
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error writing database.json:', error.message);
