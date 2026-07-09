@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useWikiStore, readFile, writeFile, addAuditLogVFS } from '@/lib/store';
+import { useWikiStore, readFile, writeFile, addAuditLogVFS, getValidUserId, warnStaleSession } from '@/lib/store';
 import { canUserEdit, canUserShare } from '@/lib/acl';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -456,9 +456,13 @@ export default function WikiPageStage() {
   };
 
   const confirmAddPage = () => {
-    if (!currentUser) return;
+    const userId = getValidUserId(currentUser);
+    if (!userId) {
+      warnStaleSession();
+      return;
+    }
     const newDocId = `doc-${new Date().getTime()}`;
-    
+
     let content = '';
     if (newDocTemplateId) {
       const tpl = templates.find((t: any) => t.id === newDocTemplateId);
@@ -471,31 +475,29 @@ export default function WikiPageStage() {
       id: newDocId,
       title: newDocName || '📁 Untitled Document',
       content,
-      ownerId: currentUser.id,
+      ownerId: userId,
       visibility: 'PRIVATE' as const,
       collaborators: [],
       teamCollaborators: [],
-      sharedWith: currentUser.id ? [{ userId: currentUser.id, role: 'Admin' as const }] : [],
+      sharedWith: [{ userId, role: 'Admin' as const }],
       lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
-    
+
     useWikiStore.getState().createDocument(newDoc);
-    
-    if (currentUser) {
-      addAuditLogVFS(
-        currentUser.id,
-        'WIKI_CREATE',
-        `Created wiki document "${newDoc.title}" under Personal Workspace.`,
-        currentUser.id,
-        {
-          wikiName: newDoc.title,
-          teamName: 'Personal Workspace',
-          role: currentUser.role,
-          userName: currentUser.username,
-          userEmail: currentUser.email || `${currentUser.username}@enterprise.wiki`
-        }
-      );
-    }
+
+    addAuditLogVFS(
+      userId,
+      'WIKI_CREATE',
+      `Created wiki document "${newDoc.title}" under Personal Workspace.`,
+      userId,
+      {
+        wikiName: newDoc.title,
+        teamName: 'Personal Workspace',
+        role: currentUser?.role,
+        userName: currentUser?.username,
+        userEmail: currentUser?.email || `${currentUser?.username}@enterprise.wiki`
+      }
+    );
 
     setActivePageId(newDocId);
     setIsNewDocModalOpen(false);
@@ -576,35 +578,33 @@ export default function WikiPageStage() {
   const TEXT_IMPORT_EXTENSIONS = ['.md', '.markdown', '.html', '.htm'];
   const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'];
 
-  const finishFileImport = (content: string, titlePrefix: string, file: File) => {
-    if (!currentUser) return;
-
+  const finishFileImport = (content: string, titlePrefix: string, file: File, userId: string) => {
     const newDocId = `doc-${new Date().getTime()}`;
     const newDoc = {
       id: newDocId,
       title: `${titlePrefix} ${file.name.replace(/\.[^/.]+$/, '')}`,
       content: content || '<p>Imported empty document...</p>',
-      ownerId: currentUser.id,
+      ownerId: userId,
       visibility: 'PRIVATE' as const,
       collaborators: [],
       teamCollaborators: [],
-      sharedWith: currentUser.id ? [{ userId: currentUser.id, role: 'Admin' as const }] : [],
+      sharedWith: [{ userId, role: 'Admin' as const }],
       lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     useWikiStore.getState().createDocument(newDoc);
 
     addAuditLogVFS(
-      currentUser.id,
+      userId,
       'WIKI_CREATE',
       `Created wiki document "${newDoc.title}" via file import.`,
-      currentUser.id,
+      userId,
       {
         wikiName: newDoc.title,
         teamName: 'Imported Pages',
-        role: currentUser.role,
-        userName: currentUser.username,
-        userEmail: currentUser.email || `${currentUser.username}@enterprise.wiki`
+        role: currentUser?.role,
+        userName: currentUser?.username,
+        userEmail: currentUser?.email || `${currentUser?.username}@enterprise.wiki`
       }
     );
 
@@ -614,7 +614,12 @@ export default function WikiPageStage() {
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!currentUser) return;
+    const userId = getValidUserId(currentUser);
+    if (!userId) {
+      warnStaleSession();
+      if (importInputRef.current) importInputRef.current.value = '';
+      return;
+    }
 
     const lowerName = file.name.toLowerCase();
     const isTextImport = TEXT_IMPORT_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
@@ -645,7 +650,7 @@ export default function WikiPageStage() {
           cleanHtml = cleanHtml.replace(/<\/ul>\s*<ul>/g, '');
         }
 
-        finishFileImport(cleanHtml, '📥', file);
+        finishFileImport(cleanHtml, '📥', file, userId);
       };
       reader.readAsText(file);
       if (importInputRef.current) importInputRef.current.value = '';
@@ -661,7 +666,7 @@ export default function WikiPageStage() {
     try {
       const formData = new FormData();
       formData.append('file', file, file.name);
-      formData.append('userId', currentUser.id);
+      formData.append('userId', userId);
 
       const response = await fetch('/api/upload', { method: 'POST', body: formData });
       if (!response.ok) {
@@ -674,7 +679,7 @@ export default function WikiPageStage() {
         ? `<img src="${fileUrl}" alt="${file.name}" />`
         : `<p><a href="${fileUrl}" target="_blank" rel="noopener noreferrer">📎 ${file.name}</a></p>`;
 
-      finishFileImport(content, isImage ? '🖼️' : '📎', file);
+      finishFileImport(content, isImage ? '🖼️' : '📎', file, userId);
     } catch (err) {
       console.error('File import upload failed:', err);
       alert(err instanceof Error ? err.message : 'Failed to import file.');
@@ -1510,9 +1515,14 @@ Task instruction: Perform the modification directly on the HTML document above. 
                               oldHtml: activePage.content || "<p>Previous version content...</p>",
                               newHtml: contentToSave || "<p>Current editor content...</p>",
                               onConfirm: (versionName) => {
+                                const userId = getValidUserId(currentUser);
+                                if (!userId) {
+                                  warnStaleSession();
+                                  return;
+                                }
                                 setSavingStatus('saving');
                                 const { saveVersion } = useWikiStore.getState();
-                                saveVersion(activePage.id, contentToSave, currentUser?.id || '', versionName);
+                                saveVersion(activePage.id, contentToSave, userId, versionName);
                                 setHasUnsavedChanges(false);
                                 setSavingStatus('saved');
                               }
@@ -1603,9 +1613,14 @@ Task instruction: Perform the modification directly on the HTML document above. 
                                     oldHtml: activePage.content || "<p>Previous version content...</p>",
                                     newHtml: contentToSave || "<p>Current editor content...</p>",
                                     onConfirm: (versionName) => {
+                                      const userId = getValidUserId(currentUser);
+                                      if (!userId) {
+                                        warnStaleSession();
+                                        return;
+                                      }
                                       setSavingStatus('saving');
                                       const { saveVersion } = useWikiStore.getState();
-                                      saveVersion(activePage.id, contentToSave, currentUser?.id || '', versionName);
+                                      saveVersion(activePage.id, contentToSave, userId, versionName);
                                       setHasUnsavedChanges(false);
                                       setSavingStatus('saved');
                                       
@@ -1886,8 +1901,13 @@ Task instruction: Perform the modification directly on the HTML document above. 
                       <button
                         onClick={() => {
                           if (!newCommentText.trim()) return;
+                          const userId = getValidUserId(currentUser);
+                          if (!userId) {
+                            warnStaleSession();
+                            return;
+                          }
                           const { addComment } = useWikiStore.getState();
-                          addComment(activePage.id, newCommentText, currentUser?.id || '', '');
+                          addComment(activePage.id, newCommentText, userId, '');
                           setNewCommentText('');
                         }}
                         className="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold rounded transition-colors"

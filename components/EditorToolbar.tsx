@@ -25,7 +25,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 
-import { WikiDocument, useWikiStore } from '@/lib/store';
+import { WikiDocument, useWikiStore, getValidUserId, warnStaleSession } from '@/lib/store';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -123,6 +123,13 @@ export default function EditorToolbar({ editor, activeDocument }: EditorToolbarP
     const file = event.target.files?.[0];
     if (!file || !editor) return;
 
+    const userId = getValidUserId(currentUser);
+    if (!userId) {
+      warnStaleSession();
+      if (event.target) event.target.value = '';
+      return;
+    }
+
     // Compress image client-side to ensure it is lightweight and uploads fast!
     let uploadBlob: Blob | File = file;
     try {
@@ -136,7 +143,7 @@ export default function EditorToolbar({ editor, activeDocument }: EditorToolbarP
       ? file.name
       : `${file.name}.jpg`;
     formData.append('file', uploadBlob, fileName);
-    formData.append('userId', currentUser?.id || '');
+    formData.append('userId', userId);
 
     try {
       // AI INSTRUCTION: Verify the correct upload API route path for this specific project. Defaulting to /api/upload

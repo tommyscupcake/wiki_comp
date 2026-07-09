@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, User } from 'lucide-react';
-import { useWikiStore, readFile, writeFile, addAuditLogVFS } from '@/lib/store';
+import { useWikiStore, readFile, writeFile, addAuditLogVFS, getValidUserId, warnStaleSession } from '@/lib/store';
 
 interface TeamMember {
   userId: string;
@@ -53,21 +53,26 @@ export default function CreateDocumentModal({ isOpen, onClose, team, onSuccess }
   };
 
   const handleCreate = async () => {
-    if (!pageName.trim() || !currentUser) return;
+    if (!pageName.trim()) return;
+    const userId = getValidUserId(currentUser);
+    if (!userId) {
+      warnStaleSession();
+      return;
+    }
     setLoading(true);
     setErrorMsg('');
     try {
       // Simulate brief network delay
       await new Promise(r => setTimeout(r, 400));
-      
+
       const docId = `doc-${new Date().getTime()}`;
-      
-      const sharedWith = Object.entries(permissions).map(([userId, p]) => ({
-        userId,
+
+      const sharedWith = Object.entries(permissions).map(([memberId, p]) => ({
+        userId: memberId,
         role: (p === 'EDITOR' || p === 'MODERATOR') ? 'Editor' : (p === 'ADMIN' ? 'Admin' : 'Viewer') as any
       }));
-      if (!sharedWith.some(s => s.userId === currentUser.id)) {
-        sharedWith.push({ userId: currentUser.id, role: 'Admin' });
+      if (!sharedWith.some(s => s.userId === userId)) {
+        sharedWith.push({ userId, role: 'Admin' });
       }
 
       let content = '';
@@ -82,32 +87,30 @@ export default function CreateDocumentModal({ isOpen, onClose, team, onSuccess }
         id: docId,
         title: pageName,
         content,
-        ownerId: currentUser.id,
+        ownerId: userId,
         visibility: 'PRIVATE' as const,
         collaborators: [],
         teamCollaborators: [{ teamId: team.id, access: 'READ' as const }],
         sharedWith,
         lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      
+
       useWikiStore.getState().createDocument(newDoc);
-      
-      if (currentUser && team) {
-        addAuditLogVFS(
-          currentUser.id,
-          'WIKI_CREATE',
-          `Created wiki document "${pageName}" under team "${team.name}".`,
-          currentUser.id,
-          {
-            wikiName: pageName,
-            teamName: team.name,
-            role: currentUser.role,
-            userName: currentUser.username,
-            userEmail: currentUser.email || `${currentUser.username}@enterprise.wiki`
-          }
-        );
-      }
-      
+
+      addAuditLogVFS(
+        userId,
+        'WIKI_CREATE',
+        `Created wiki document "${pageName}" under team "${team.name}".`,
+        userId,
+        {
+          wikiName: pageName,
+          teamName: team.name,
+          role: currentUser?.role,
+          userName: currentUser?.username,
+          userEmail: currentUser?.email || `${currentUser?.username}@enterprise.wiki`
+        }
+      );
+
       if (onSuccess) {
         onSuccess(docId);
       } else {

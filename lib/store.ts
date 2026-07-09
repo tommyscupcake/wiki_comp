@@ -1557,6 +1557,20 @@ export function writeFile(path: string, content: any) {
   });
 }
 
+// Guards against a stale in-memory session: `currentUser` can be a truthy
+// object while its `id` is missing/empty (e.g. a browser tab left open
+// since before an auth fix deployed, or a race during login/logout).
+// Writing owner_id/author_id/etc. with a bad id would otherwise silently
+// reach the server and fail as an opaque Postgres FK violation. Callers
+// must check this before constructing any write that embeds a user id.
+export function getValidUserId(user: { id?: string } | null | undefined): string | null {
+  return user?.id && typeof user.id === 'string' && user.id.trim().length > 0 ? user.id : null;
+}
+
+export function warnStaleSession(): void {
+  alert('Your session needs to refresh before this can be saved — please reload the page.');
+}
+
 export function addAuditLogVFS(adminId: string, action: string, details: string, targetUserId?: string, metadata?: any) {
   useWikiStore.setState(state => {
     const adminUser = state.users.find(u => u.id === adminId);

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { X, UserPlus, Shield, Trash2 } from 'lucide-react';
-import { useWikiStore, addAuditLogVFS, readFile, User } from '@/lib/store';
+import { useWikiStore, addAuditLogVFS, readFile, User, getValidUserId } from '@/lib/store';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -89,13 +89,19 @@ export default function ShareModal({ isOpen, onClose, document, visibility, setV
     setVisibility(localVisibility);
 
     try {
-      if (currentUser) {
+      // Best-effort attribution only — the permissions write above already
+      // succeeded independent of this, so a stale session here just skips
+      // the audit log entry rather than blocking the (already-done) save.
+      const userId = getValidUserId(currentUser);
+      if (userId) {
         addAuditLogVFS(
-          currentUser.id,
+          userId,
           'DOCUMENT_SHARE',
           `Updated permissions for "${document.title}" (Visibility: ${mappedVisibility}, Shared with: ${newSharedWith.length} users).`,
           document.id
         );
+      } else {
+        console.warn('Skipped audit log for DOCUMENT_SHARE: stale session (no valid currentUser.id).');
       }
     } catch (e) {
       console.error(e);
