@@ -2227,38 +2227,6 @@ Task instruction: Perform the modification directly on the HTML document above. 
         </div>
       )}
 
-      {/* History Modal Overlay */}
-      {isHistoryOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-slate-50 w-[800px] max-w-[90vw] max-h-[85vh] rounded-lg shadow-2xl flex flex-col overflow-hidden border border-slate-300">
-            
-            <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800">Document History (Revision Diff)</h2>
-              <button onClick={() => setIsHistoryOpen(false)} className="text-slate-400 hover:text-slate-800 font-bold p-1 transition-colors">
-                ✕
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto bg-slate-50">
-              {/* Mock data injected to test the inline highlight UI */}
-              <DocumentDiffViewer
-                oldHtml="<p>The company Little Snow Flakes was founded recently.</p><p>We sell sport brands.</p>"
-                newHtml="<p>The company Little Snow Flakes Limited was founded recently.</p><p>We are the official distributor for Legea and Volchem.</p>"
-              />
-            </div>
-            
-            <div className="px-6 py-4 bg-white border-t border-slate-200 flex justify-end">
-               <button 
-                 onClick={() => setIsHistoryOpen(false)} 
-                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-sm font-medium transition-colors"
-               >
-                 Restore this Version
-               </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
     </div>
   );
 }
