@@ -14,21 +14,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const teamId = (formData.get('teamId') as string || 'workspace').trim();
-    const teamName = (formData.get('teamName') as string || 'Workspace').trim();
-    const wikiId = (formData.get('wikiId') as string || 'general').trim();
-    const wikiTitle = (formData.get('wikiTitle') as string || 'General').trim();
-
-    // Sanitize names for safety and VPS cross-platform directory names
-    const safeTeamName = teamName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase() || `team_${teamId}`;
-    const safeWikiTitle = wikiTitle.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase() || `wiki_${wikiId}`;
+    const userId = (formData.get('userId') as string || '').trim();
+    const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_') || 'unknown-user';
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
     const originalName = file.name || 'image.jpg';
     const filename = `${Date.now()}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    const relativeDir = `uploads/teams/${safeTeamName}/${safeWikiTitle}`;
+    const relativeDir = `users/${safeUserId}/uploads`;
 
     if (process.env.STORAGE_MODE === 's3') {
       const key = `${relativeDir}/${filename}`;

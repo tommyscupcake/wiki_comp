@@ -117,7 +117,7 @@ export default function EditorToolbar({ editor, activeDocument }: EditorToolbarP
   const sizeRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const virtualFileSystem = useWikiStore((state) => state.virtualFileSystem);
+  const currentUser = useWikiStore((state) => state.currentUser);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -131,24 +131,12 @@ export default function EditorToolbar({ editor, activeDocument }: EditorToolbarP
       console.warn("Compression failed, uploading original file", e);
     }
 
-    const teams = virtualFileSystem?.["teams.json"] || [];
-    const teamCollab = activeDocument?.teamCollaborators?.[0];
-    const team = teams.find((t: any) => t.id === teamCollab?.teamId);
-
-    const teamId = team?.id || 'workspace';
-    const teamName = team?.name || 'Workspace';
-    const wikiId = activeDocument?.id || 'general';
-    const wikiTitle = activeDocument?.title || 'General';
-
     const formData = new FormData();
     const fileName = file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg') || file.name.endsWith('.webp')
       ? file.name
       : `${file.name}.jpg`;
     formData.append('file', uploadBlob, fileName);
-    formData.append('teamId', teamId);
-    formData.append('teamName', teamName);
-    formData.append('wikiId', wikiId);
-    formData.append('wikiTitle', wikiTitle);
+    formData.append('userId', currentUser?.id || '');
 
     try {
       // AI INSTRUCTION: Verify the correct upload API route path for this specific project. Defaulting to /api/upload

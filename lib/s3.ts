@@ -46,7 +46,8 @@ export async function getObject(key: string) {
 // this never blocks or fails a document save.
 export async function backupDocumentToS3(doc: { id: string; [key: string]: unknown }): Promise<void> {
   if (!doc?.id) return;
-  const key = `documents/${doc.id}/${Date.now()}.json`;
+  const ownerId = typeof doc.ownerId === 'string' && doc.ownerId ? doc.ownerId : 'unknown-user';
+  const key = `users/${ownerId}/documents/${doc.id}/${Date.now()}.json`;
   const body = Buffer.from(JSON.stringify(doc, null, 2), 'utf-8');
   await uploadObject(key, body, 'application/json');
 }

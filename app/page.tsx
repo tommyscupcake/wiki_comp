@@ -661,10 +661,7 @@ export default function WikiPageStage() {
     try {
       const formData = new FormData();
       formData.append('file', file, file.name);
-      formData.append('teamId', 'workspace');
-      formData.append('teamName', 'Workspace');
-      formData.append('wikiId', `doc-${new Date().getTime()}`);
-      formData.append('wikiTitle', file.name.replace(/\.[^/.]+$/, ''));
+      formData.append('userId', currentUser.id);
 
       const response = await fetch('/api/upload', { method: 'POST', body: formData });
       if (!response.ok) {
