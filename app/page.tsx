@@ -1474,7 +1474,7 @@ Task instruction: Perform the modification directly on the HTML document above. 
                               onConfirm: (versionName) => {
                                 setSavingStatus('saving');
                                 const { saveVersion } = useWikiStore.getState();
-                                saveVersion(activePage.id, contentToSave, currentUser?.username || 'Unknown User', versionName);
+                                saveVersion(activePage.id, contentToSave, currentUser?.id || '', versionName);
                                 setHasUnsavedChanges(false);
                                 setSavingStatus('saved');
                               }
@@ -1567,7 +1567,7 @@ Task instruction: Perform the modification directly on the HTML document above. 
                                     onConfirm: (versionName) => {
                                       setSavingStatus('saving');
                                       const { saveVersion } = useWikiStore.getState();
-                                      saveVersion(activePage.id, contentToSave, currentUser?.username || 'Unknown User', versionName);
+                                      saveVersion(activePage.id, contentToSave, currentUser?.id || '', versionName);
                                       setHasUnsavedChanges(false);
                                       setSavingStatus('saved');
                                       
@@ -1849,7 +1849,7 @@ Task instruction: Perform the modification directly on the HTML document above. 
                         onClick={() => {
                           if (!newCommentText.trim()) return;
                           const { addComment } = useWikiStore.getState();
-                          addComment(activePage.id, newCommentText, currentUser?.username || 'unknown', '');
+                          addComment(activePage.id, newCommentText, currentUser?.id || '', '');
                           setNewCommentText('');
                         }}
                         className="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold rounded transition-colors"
