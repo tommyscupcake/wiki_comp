@@ -232,6 +232,17 @@ const getStoredTemplates = (isClient: boolean): WikiTemplate[] => {
 
 const INITIAL_TEAMS: Team[] = [];
 
+// Defense in depth: strips the legacy 'admin-id'/'user-id' seed documents
+// (and any document owned by those placeholder ids) out of any document
+// list, regardless of where it came from — the server, IndexedDB, or an old
+// in-memory tab that predates the seed-data removal. Keeps them from ever
+// being displayed or re-sent to the server, even if a stale client session
+// is still carrying them.
+const KNOWN_BAD_DOC_IDS = new Set(['welcome-page', 'prd-template', 'engineering-playbook']);
+const KNOWN_BAD_OWNER_IDS = new Set(['admin-id', 'user-id']);
+const sanitizeDocuments = (docs: WikiDocument[]): WikiDocument[] =>
+  (docs || []).filter((d) => !KNOWN_BAD_DOC_IDS.has(d.id) && !KNOWN_BAD_OWNER_IDS.has(d.ownerId));
+
 const getStoredTeams = (isClient: boolean): Team[] => {
   if (!isClient) return INITIAL_TEAMS;
   const item = localStorage.getItem('wiki_teams_list');
@@ -306,7 +317,7 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
       const state = get();
     const payload = {
       users: state.users,
-      documents: state.documents,
+      documents: sanitizeDocuments(state.documents),
       teams: state.teams,
       auditLogs: state.auditLogs,
       notifications: state.notifications,
@@ -440,7 +451,7 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
       }));
     }
     try {
-      const parsed = JSON.parse(item);
+      const parsed = sanitizeDocuments(JSON.parse(item));
       return parsed.map((doc: any) => ({
         ...doc,
         teamCollaborators: doc.teamCollaborators || []
@@ -1492,7 +1503,7 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
           const virtualFileSystem = json.data.virtualFileSystem || get().virtualFileSystem;
           originalSet({
             users,
-            documents: json.data.documents || [],
+            documents: sanitizeDocuments(json.data.documents || []),
             teams: json.data.teams || [],
             auditLogs: json.data.auditLogs || [],
             virtualFileSystem: { ...virtualFileSystem, 'users.json': users }
@@ -1597,7 +1608,7 @@ if (typeof window !== 'undefined') {
   idbGet('wiki_documents_list2').then((val) => {
     if (val) {
       try {
-        useWikiStore.setState({ documents: JSON.parse(val as string) });
+        useWikiStore.setState({ documents: sanitizeDocuments(JSON.parse(val as string)) });
       } catch (e) {
         console.error("Failed to parse documents from idb", e);
       }
