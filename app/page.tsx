@@ -573,74 +573,116 @@ export default function WikiPageStage() {
     importInputRef.current?.click();
   };
 
-  const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const TEXT_IMPORT_EXTENSIONS = ['.md', '.markdown', '.html', '.htm'];
+  const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'];
+
+  const finishFileImport = (content: string, titlePrefix: string, file: File) => {
+    if (!currentUser) return;
+
+    const newDocId = `doc-${new Date().getTime()}`;
+    const newDoc = {
+      id: newDocId,
+      title: `${titlePrefix} ${file.name.replace(/\.[^/.]+$/, '')}`,
+      content: content || '<p>Imported empty document...</p>',
+      ownerId: currentUser.id,
+      visibility: 'PRIVATE' as const,
+      collaborators: [],
+      teamCollaborators: [],
+      sharedWith: currentUser.id ? [{ userId: currentUser.id, role: 'Admin' as const }] : [],
+      lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    useWikiStore.getState().createDocument(newDoc);
+
+    addAuditLogVFS(
+      currentUser.id,
+      'WIKI_CREATE',
+      `Created wiki document "${newDoc.title}" via file import.`,
+      currentUser.id,
+      {
+        wikiName: newDoc.title,
+        teamName: 'Imported Pages',
+        role: currentUser.role,
+        userName: currentUser.username,
+        userEmail: currentUser.email || `${currentUser.username}@enterprise.wiki`
+      }
+    );
+
+    setActivePageId(newDocId);
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!currentUser) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      let cleanHtml = '';
+    const lowerName = file.name.toLowerCase();
+    const isTextImport = TEXT_IMPORT_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
 
-      if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
-        cleanHtml = text;
-      } else {
-        // Safe, basic Markdown parser translating headings, bullets, blocks into pure HTML structured markup
-        cleanHtml = text
-          .replace(/^#\s+(.*$)/gim, '<h1>$1</h1>')
-          .replace(/^##\s+(.*$)/gim, '<h2>$1</h2>')
-          .replace(/^###\s+(.*$)/gim, '<h3>$1</h3>')
-          .replace(/^\>\s+(.*$)/gim, '<blockquote>$1</blockquote>')
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em>$1</em>')
-          .replace(/~~(.*?)~~/g, '<del>$1</del>')
-          .replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>')
-          .replace(/^\s*- (.*$)/gim, '<ul><li>$1</li></ul>')
-          .replace(/^([^\r\n]+)/gim, '<p>$1</p>');
+    if (isTextImport) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        let cleanHtml = '';
 
-        // Merge adjacent <ul> elements safely
-        cleanHtml = cleanHtml.replace(/<\/ul>\s*<ul>/g, '');
-      }
+        if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+          cleanHtml = text;
+        } else {
+          // Safe, basic Markdown parser translating headings, bullets, blocks into pure HTML structured markup
+          cleanHtml = text
+            .replace(/^#\s+(.*$)/gim, '<h1>$1</h1>')
+            .replace(/^##\s+(.*$)/gim, '<h2>$1</h2>')
+            .replace(/^###\s+(.*$)/gim, '<h3>$1</h3>')
+            .replace(/^\>\s+(.*$)/gim, '<blockquote>$1</blockquote>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/~~(.*?)~~/g, '<del>$1</del>')
+            .replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>')
+            .replace(/^\s*- (.*$)/gim, '<ul><li>$1</li></ul>')
+            .replace(/^([^\r\n]+)/gim, '<p>$1</p>');
 
-      if (!currentUser) return;
+          // Merge adjacent <ul> elements safely
+          cleanHtml = cleanHtml.replace(/<\/ul>\s*<ul>/g, '');
+        }
 
-      const newDocId = `doc-${new Date().getTime()}`;
-      const newDoc = {
-        id: newDocId,
-        title: `📥 ${file.name.replace(/\.[^/.]+$/, '')}`,
-        content: cleanHtml || '<p>Imported empty document...</p>',
-        ownerId: currentUser.id,
-        visibility: 'PRIVATE' as const,
-        collaborators: [],
-        teamCollaborators: [],
-        sharedWith: currentUser.id ? [{ userId: currentUser.id, role: 'Admin' as const }] : [],
-        lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        finishFileImport(cleanHtml, '📥', file);
       };
-      
-      useWikiStore.getState().createDocument(newDoc);
-      
-      if (currentUser) {
-        addAuditLogVFS(
-          currentUser.id,
-          'WIKI_CREATE',
-          `Created wiki document "${newDoc.title}" via file import.`,
-          currentUser.id,
-          {
-            wikiName: newDoc.title,
-            teamName: 'Imported Pages',
-            role: currentUser.role,
-            userName: currentUser.username,
-            userEmail: currentUser.email || `${currentUser.username}@enterprise.wiki`
-          }
-        );
-      }
+      reader.readAsText(file);
+      if (importInputRef.current) importInputRef.current.value = '';
+      return;
+    }
 
-      setActivePageId(newDocId);
-    };
-    reader.readAsText(file);
-    // Reset file input value so same file can be imported again
-    if (importInputRef.current) {
-      importInputRef.current.value = '';
+    // Non-text file (image, PDF, zip, or anything else a wiki can attach):
+    // upload to S3 via the same generic pipeline the editor's image button
+    // uses, then embed it in a brand-new document — inline <img> for images,
+    // a download link for everything else.
+    const isImage = file.type.startsWith('image/') || IMAGE_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      formData.append('teamId', 'workspace');
+      formData.append('teamName', 'Workspace');
+      formData.append('wikiId', `doc-${new Date().getTime()}`);
+      formData.append('wikiTitle', file.name.replace(/\.[^/.]+$/, ''));
+
+      const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      const fileUrl = data.url;
+
+      const content = isImage
+        ? `<img src="${fileUrl}" alt="${file.name}" />`
+        : `<p><a href="${fileUrl}" target="_blank" rel="noopener noreferrer">📎 ${file.name}</a></p>`;
+
+      finishFileImport(content, isImage ? '🖼️' : '📎', file);
+    } catch (err) {
+      console.error('File import upload failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to import file.');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
 
@@ -1049,7 +1091,7 @@ Task instruction: Perform the modification directly on the HTML document above. 
                     type="button"
                     onClick={triggerImportFile}
                     className="flex-1 py-1.5 px-1.5 bg-slate-800 hover:bg-slate-750 rounded text-[10px] text-slate-200 font-semibold flex items-center justify-center gap-1 border border-slate-750 transition-colors cursor-pointer whitespace-nowrap"
-                    title="Import .md or .html document"
+                    title="Import a document (.md/.html) or attach a file (image, PDF, zip, etc.)"
                   >
                     <Upload size={12} /> Import Doc
                   </button>
@@ -1066,7 +1108,6 @@ Task instruction: Perform the modification directly on the HTML document above. 
                   )}
                   <input
                     type="file"
-                    accept=".md,.markdown,.html,.htm"
                     ref={importInputRef}
                     onChange={handleImportFile}
                     className="hidden"
