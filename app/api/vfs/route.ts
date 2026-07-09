@@ -70,16 +70,11 @@ export async function POST(req: NextRequest) {
     await fs.writeFile(DB_PATH, JSON.stringify(merged, null, 2), 'utf-8');
 
     if (Array.isArray(body.documents) && body.documents.length > 0) {
-      // Postgres is authoritative for document content (title/content). This
-      // must succeed for the save to count as successful.
+      // Postgres is authoritative for document content (title/content).
+      // Failures are isolated per document (see syncDocumentsDb) so one bad
+      // row (e.g. a stale owner/author reference) can't block the rest of
+      // the batch from saving.
       const syncResult = await db.syncDocumentsDb(body.documents);
-      if (!syncResult.success) {
-        console.error('Failed to persist documents to Postgres:', syncResult.error);
-        return NextResponse.json(
-          { success: false, error: syncResult.error || 'Database error', warnings: syncResult.warnings },
-          { status: 500 }
-        );
-      }
 
       // S3 backup is best-effort and must never block or fail the response.
       if (process.env.STORAGE_MODE === 's3') {
@@ -92,11 +87,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (syncResult.warnings && syncResult.warnings.length > 0) {
-        // Sync partially succeeded: content is saved, but some relational
-        // data (e.g. team sharing) couldn't be persisted. Surface this to the
-        // client instead of only logging it server-side.
-        return NextResponse.json({ success: true, warnings: syncResult.warnings });
+      if (syncResult.documentErrors.length > 0 || syncResult.warnings.length > 0) {
+        if (syncResult.documentErrors.length > 0) {
+          console.error('Failed to persist some documents to Postgres:', syncResult.documentErrors);
+        }
+        // Surface this to the client instead of only logging it server-side,
+        // even though the overall request still succeeded (local backup and
+        // any unaffected documents did save).
+        return NextResponse.json({
+          success: true,
+          documentErrors: syncResult.documentErrors.length ? syncResult.documentErrors : undefined,
+          warnings: syncResult.warnings.length ? syncResult.warnings : undefined,
+        });
       }
     }
 

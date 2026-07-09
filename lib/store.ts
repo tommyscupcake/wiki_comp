@@ -177,8 +177,15 @@ interface WikiState {
   loadFromServer: () => Promise<void>;
 }
 
+// In live mode there is no seeded workspace — real data only ever comes from
+// Postgres via loadFromServer(). The DEMO_* constants below exist only for
+// local/dev mode; their ids and owner references (e.g. 'admin-id') don't
+// correspond to any row in a real database, so they must never reach the
+// server in live mode (see the gated INITIAL_*/DEFAULT_* constants).
+const IS_LIVE_MODE = process.env.NEXT_PUBLIC_API_MODE === 'live';
+
 // Initial pages updated with ownerIds, visibility, and collaborator structure
-const INITIAL_DOCUMENTS: WikiDocument[] = [
+const DEMO_DOCUMENTS: WikiDocument[] = [
   {
     id: 'welcome-page',
     title: '🚀 Welcome to the Enterprise Wiki Workspace',
@@ -282,8 +289,9 @@ const ai = new GoogleGenAI({
 <p>Tailwind utility directives must form the baseline styling layer. For isolated, high-performance web systems (like editor stages), inline stylesheets or targeted css rules provide resilient behavior.</p>`,
   },
 ];
+const INITIAL_DOCUMENTS: WikiDocument[] = IS_LIVE_MODE ? [] : DEMO_DOCUMENTS;
 
-const DEFAULT_USERS: User[] = [
+const DEMO_USERS: User[] = [
   { 
     id: 'admin-id',
     username: 'admin',
@@ -305,8 +313,9 @@ const DEFAULT_USERS: User[] = [
     sessionVersion: 1
   },
 ];
+const DEFAULT_USERS: User[] = IS_LIVE_MODE ? [] : DEMO_USERS;
 
-const INITIAL_AUDIT_LOGS: AuditLog[] = [
+const DEMO_AUDIT_LOGS: AuditLog[] = [
   {
     id: 'log-1',
     adminId: 'admin-id',
@@ -324,6 +333,7 @@ const INITIAL_AUDIT_LOGS: AuditLog[] = [
     timestamp: new Date(Date.now() - 3600000).toLocaleString()
   }
 ];
+const INITIAL_AUDIT_LOGS: AuditLog[] = IS_LIVE_MODE ? [] : DEMO_AUDIT_LOGS;
 
 const getStoredAuditLogs = (isClient: boolean): AuditLog[] => {
   if (!isClient) return INITIAL_AUDIT_LOGS;
@@ -365,7 +375,7 @@ const getStoredTemplates = (isClient: boolean): WikiTemplate[] => {
   }
 };
 
-const INITIAL_TEAMS: Team[] = [
+const DEMO_TEAMS: Team[] = [
   {
     id: 'engineering-team',
     name: 'Payit123',
@@ -375,6 +385,7 @@ const INITIAL_TEAMS: Team[] = [
     ],
   },
 ];
+const INITIAL_TEAMS: Team[] = IS_LIVE_MODE ? [] : DEMO_TEAMS;
 
 const getStoredTeams = (isClient: boolean): Team[] => {
   if (!isClient) return INITIAL_TEAMS;
@@ -467,8 +478,13 @@ export const useWikiStore = create<WikiState>((originalSet, get) => {
           set({ syncWarning: { level: 'error', message: json?.error || 'Failed to save changes to the server.' } });
           return;
         }
-        if (Array.isArray(json?.warnings) && json.warnings.length > 0) {
-          const message = json.warnings.map((w: any) => w.message).join(' ');
+        const docErrors = Array.isArray(json?.documentErrors) ? json.documentErrors : [];
+        const warnings = Array.isArray(json?.warnings) ? json.warnings : [];
+        if (docErrors.length > 0) {
+          const message = [...docErrors, ...warnings].map((w: any) => w.message).join(' ');
+          set({ syncWarning: { level: 'error', message } });
+        } else if (warnings.length > 0) {
+          const message = warnings.map((w: any) => w.message).join(' ');
           set({ syncWarning: { level: 'warning', message } });
         }
       })

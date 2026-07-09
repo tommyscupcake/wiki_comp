@@ -1,9 +1,16 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
-// No accessKeyId/secretAccessKey here on purpose: the SDK falls back to the
-// default credential provider chain, which picks up the EC2 instance's IAM role.
+const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+
+// Explicit static credentials when AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY are
+// set (current deployment: a static IAM user). If they're absent, no
+// `credentials` field is passed at all, so the SDK falls back to its default
+// provider chain (e.g. an EC2 instance IAM role) — switching auth modes later
+// needs no code change.
 export const s3Client = new S3Client({
   region: process.env.AWS_REGION,
+  ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
 });
 
 export function getBucketName(): string {

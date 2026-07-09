@@ -36,6 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: `/api/files/${key}` });
     }
 
+    console.warn('STORAGE_MODE is not "s3" — file uploaded to local disk, not S3. Set STORAGE_MODE=s3 to enable S3 uploads.');
     // Local filesystem fallback for dev environments without S3 configured
     const uploadDir = join(process.cwd(), 'public', relativeDir);
     try {
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: `/${relativeDir}/${filename}` });
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('Error uploading file to S3:', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
   }
 }

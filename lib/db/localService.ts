@@ -195,5 +195,5 @@ export const incrementSessionVersionDb = async (
 export const syncDocumentsDb = async (_documents: DbDocumentSync[]): Promise<SyncDocumentsResult> => {
   // Local mode's database.json already stores documents verbatim via the
   // full-state write in app/api/vfs/route.ts — nothing extra to do here.
-  return { success: true };
+  return { documentErrors: [], warnings: [] };
 };

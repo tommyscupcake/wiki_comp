@@ -194,16 +194,40 @@ const ACCESS_LEVEL_MAP: Record<string, 'Viewer' | 'Editor'> = { READ: 'Viewer', 
 // there are collected as warnings and returned to the caller instead of only
 // being logged, so the UI can tell the user sharing/version data didn't save.
 export const syncDocumentsDb = async (documents: DbDocumentSync[]): Promise<SyncDocumentsResult> => {
+  const documentErrors: DbDocumentSyncWarning[] = [];
+  const warnings: DbDocumentSyncWarning[] = [];
+
   if (!Array.isArray(documents) || documents.length === 0) {
-    return { success: true };
+    return { documentErrors, warnings };
   }
 
   const pool = getPool();
-  const failedIds: string[] = [];
-  const warnings: DbDocumentSyncWarning[] = [];
+
+  // Pre-flight check: validate every referenced ownerId actually exists in
+  // the users table before attempting any writes. This turns an opaque
+  // Postgres FK violation into a clear, actionable log line naming the exact
+  // document and the missing owner id (e.g. a leftover 'admin-id'/'user-id'
+  // seed placeholder that doesn't correspond to a real user row), instead of
+  // silently stripping the owner or dropping the document.
+  const referencedOwnerIds = Array.from(
+    new Set(documents.map((d) => d.ownerId).filter((id): id is string => !!id))
+  );
+  let validOwnerIds = new Set<string>();
+  if (referencedOwnerIds.length > 0) {
+    const result = await pool.query('SELECT id FROM users WHERE id = ANY($1)', [referencedOwnerIds]);
+    validOwnerIds = new Set(result.rows.map((r: any) => r.id));
+  }
 
   for (const doc of documents) {
     if (!doc?.id) continue;
+    const label = doc.title ? `"${doc.title}"` : doc.id;
+
+    if (doc.ownerId && !validOwnerIds.has(doc.ownerId)) {
+      const message = `${label}: ownerId "${doc.ownerId}" does not exist in the users table — this document was NOT saved to the database. Reassign it to a real user id to fix this.`;
+      console.error(`syncDocumentsDb: invalid ownerId — ${message}`);
+      documentErrors.push({ documentId: doc.id, message });
+      continue; // skip the write entirely — it would fail the FK constraint anyway
+    }
 
     try {
       await pool.query(
@@ -219,24 +243,22 @@ export const syncDocumentsDb = async (documents: DbDocumentSync[]): Promise<Sync
         [doc.id, doc.title || '', doc.content || '', doc.ownerId || null, doc.visibility || 'PRIVATE', !!doc.isDeleted]
       );
     } catch (err) {
-      // This is the one failure that matters: content didn't persist.
+      // This is the one failure that matters: content didn't persist. It's
+      // isolated to this document only — other documents in the same batch
+      // still get synced below, and the caller decides how to surface this.
+      const detail = err instanceof Error ? err.message : String(err);
       console.error(`syncDocumentsDb: failed to upsert wiki_documents for ${doc.id}:`, err);
-      failedIds.push(doc.id);
+      documentErrors.push({
+        documentId: doc.id,
+        message: `${label}: could not be saved to the database (${detail}).`,
+      });
       continue; // don't bother syncing children for a doc whose row doesn't exist
     }
 
     warnings.push(...(await syncDocumentChildren(doc)));
   }
 
-  if (failedIds.length > 0) {
-    return {
-      success: false,
-      error: `Failed to save ${failedIds.length} document(s) to the database`,
-      failedIds,
-      warnings: warnings.length ? warnings : undefined,
-    };
-  }
-  return { success: true, warnings: warnings.length ? warnings : undefined };
+  return { documentErrors, warnings };
 };
 
 async function syncDocumentChildren(doc: DbDocumentSync): Promise<DbDocumentSyncWarning[]> {

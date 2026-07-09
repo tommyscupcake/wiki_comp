@@ -55,8 +55,6 @@ export interface DbDocumentSyncWarning {
 }
 
 export interface SyncDocumentsResult {
-  success: boolean;
-  error?: string;
-  failedIds?: string[];
-  warnings?: DbDocumentSyncWarning[];
+  documentErrors: DbDocumentSyncWarning[]; // hard failures: content did not save
+  warnings: DbDocumentSyncWarning[]; // soft failures: collaborators/history/comments did not save
 }
