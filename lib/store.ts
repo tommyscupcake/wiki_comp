@@ -177,163 +177,18 @@ interface WikiState {
   loadFromServer: () => Promise<void>;
 }
 
-// In live mode there is no seeded workspace — real data only ever comes from
-// Postgres via loadFromServer(). The DEMO_* constants below exist only for
-// local/dev mode; their ids and owner references (e.g. 'admin-id') don't
-// correspond to any row in a real database, so they must never reach the
-// server in live mode (see the gated INITIAL_*/DEFAULT_* constants).
-const IS_LIVE_MODE = process.env.NEXT_PUBLIC_API_MODE === 'live';
-
-// Initial pages updated with ownerIds, visibility, and collaborator structure
-const DEMO_DOCUMENTS: WikiDocument[] = [
-  {
-    id: 'welcome-page',
-    title: '🚀 Welcome to the Enterprise Wiki Workspace',
-    lastUpdated: '09:42 AM',
-    ownerId: 'admin-id',
-    visibility: 'WORKSPACE',
-    collaborators: [],
-    teamCollaborators: [],
-    sharedWith: [{ userId: 'admin-id', role: 'Admin' }],
-    content: `<h1>Welcome to the Next-Generation Wiki Workspace!</h1>
-<p>This is an enterprise-grade collaborative documentation hub built on a custom high-performance, schema-driven <strong>Tiptap</strong> text processing engine. Every formatting command behaves as isolated state layers—applying bolding or italics will never disrupt inline colors or fonts.</p>
-
-<h2>📋 Interactive Formatting Playground</h2>
-<p>To witness the strict, pixel-perfect formatting isolated layers, highlight any word and apply formatting from the toolbar, such as picking individual colors, choosing heading levels or adjusting precise pixel sizes.</p>
-
-<h2>📏 Proportional Bullet Points & List Scaling</h2>
-<p>This workspace implements an advanced cascading list marker styling. Under standard browsers, bullet points do not automatically scale or match font adjustments. Try changing the font size of the bullets below with the Font Size indicators in the toolbar! The list bullet elements will perfectly synchronize in magnitude and color with the text children:</p>
-
-<ul>
-  <li><span style="font-size: 14px; color: rgb(148, 163, 184);">Standard item scaled to 14px for meta items</span></li>
-  <li><span style="font-size: 18px; color: rgb(241, 245, 249);">Slightly enlarged 18px documentation row</span></li>
-  <li><span style="font-size: 28px; color: rgb(59, 130, 246);">Highly prominent 28px display bullet point row!</span></li>
-</ul>
-
-<hr />
-
-<h2>✅ Managed Interactive Checklists</h2>
-<p>We've integrated a custom-designed task checklist state. Checkboxes possess responsive CSS transitions and cross-out completed items beautifully:</p>
-
-<ul data-type="taskList">
-  <li data-checked="true" class="task-item">
-    <label><input type="checkbox" checked="checked"><span></span></label>
-    <div>Explore the custom horizontal formatting toolbar</div>
-  </li>
-  <li data-checked="false" class="task-item">
-    <label><input type="checkbox"><span></span></label>
-    <div>Write a customized Product Specification for our app</div>
-  </li>
-  <li data-checked="false" class="task-item">
-    <label><input type="checkbox"><span></span></label>
-    <div>Activate the <strong>Gemini AI Formatting Copilot</strong> panel to generate automated tests</div>
-  </li>
-</ul>`,
-  },
-  {
-    id: 'prd-template',
-    title: '📘 User Guide: Getting Started with Wiki Workspace',
-    lastUpdated: '10:15 AM',
-    ownerId: 'user-id',
-    visibility: 'PRIVATE',
-    collaborators: [],
-    teamCollaborators: [],
-    sharedWith: [{ userId: 'user-id', role: 'Admin' }],
-    content: `<h1>Welcome to your Wiki Workspace, user!</h1>
-<p>This is your personal introduction page. Only you have access to this page, and you can edit or delete it as you see fit.</p>
-
-<h2>🚀 What you can do as a Normal User:</h2>
-
-<h3>1. Create Your Own Wikis</h3>
-<p>Click on the <strong>+ New Document</strong> button in the left sidebar to create a new wiki document. By default, newly created documents are <strong>Private</strong> to you, but you can share them or assign them to a team.</p>
-
-<h3>2. Workspace & Team Collaboration</h3>
-<p>In the sidebar, you can see <strong>Workspace Teams</strong> that you are a member of. Inside each team folder, you can access, read, and edit the wiki documents belonging to that team.</p>
-
-<h3>3. Share & Control Access</h3>
-<p>Want to work with others on a private wiki? Click the <strong>Share</strong> button at the top of the editor. You can invite specific users as Viewers or Editors, or publish the wiki to the entire Workspace.</p>
-
-<h3>4. Review Document History & Comments</h3>
-<ul>
-  <li>Click <strong>History</strong> to view previous versions of your document and restore them if needed.</li>
-  <li>Click <strong>Comments</strong> to discuss content with other team members in real-time.</li>
-</ul>
-
-<h3>5. Export Documents</h3>
-<p>Need your documentation offline? Click the <strong>Export</strong> button to download individual pages as Word (DOCX) or PDF format, or export multiple pages simultaneously using the bulk exporter.</p>
-
-<p><em>Have fun documenting and collaborating! If you have any questions, contact your system administrator.</em></p>`,
-  },
-  {
-    id: 'engineering-playbook',
-    title: '🛠️ Engineering Team Codebase Guidelines',
-    lastUpdated: '02:30 PM',
-    ownerId: 'admin-id',
-    visibility: 'WORKSPACE',
-    collaborators: [],
-    teamCollaborators: [],
-    sharedWith: [{ userId: 'admin-id', role: 'Admin' }],
-    content: `<h1>Engineering Code Quality & Architecture Playbook</h1>
-<p>We mandate clean code standards, explicit types, and rigorous schemas. Below are the protocols for formatting Next.js full-stack systems.</p>
-
-<h2>💻 Server Actions & SDK Usage</h2>
-<p>Always access sensitive API credentials strictly on the server side using the secure <code>GoogleGenAI</code> model. Do not prefix critical environment credentials with CLIENT-side variables to prevent build bundle leakageages.</p>
-
-<pre><code>import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});</code></pre>
-
-<h2>📦 Modular CSS Directives</h2>
-<p>Tailwind utility directives must form the baseline styling layer. For isolated, high-performance web systems (like editor stages), inline stylesheets or targeted css rules provide resilient behavior.</p>`,
-  },
-];
-const INITIAL_DOCUMENTS: WikiDocument[] = IS_LIVE_MODE ? [] : DEMO_DOCUMENTS;
-
-const DEMO_USERS: User[] = [
-  { 
-    id: 'admin-id',
-    username: 'admin',
-    email: 'admin@enterprise.wiki',
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    requiresPasswordChange: false,
-    profilePic: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-    sessionVersion: 1
-  },
-  { 
-    id: 'user-id',
-    username: 'user',
-    email: 'user@enterprise.wiki',
-    role: 'CREATOR',
-    status: 'ACTIVE',
-    requiresPasswordChange: false,
-    profilePic: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=256&q=80',
-    sessionVersion: 1
-  },
-];
-const DEFAULT_USERS: User[] = IS_LIVE_MODE ? [] : DEMO_USERS;
-
-const DEMO_AUDIT_LOGS: AuditLog[] = [
-  {
-    id: 'log-1',
-    adminId: 'admin-id',
-    adminName: 'admin',
-    action: 'SYSTEM_INIT',
-    details: 'Enterprise wiki workspace audit logging system initialized.',
-    timestamp: new Date(Date.now() - 3600000 * 2).toLocaleString()
-  },
-  {
-    id: 'log-2',
-    adminId: 'admin-id',
-    adminName: 'admin',
-    action: 'TEAM_CREATE',
-    details: 'Created team: Payit123',
-    timestamp: new Date(Date.now() - 3600000).toLocaleString()
-  }
-];
-const INITIAL_AUDIT_LOGS: AuditLog[] = IS_LIVE_MODE ? [] : DEMO_AUDIT_LOGS;
+// No hardcoded seed/demo content. This used to ship 3 demo documents, 2 demo
+// users, a demo team, and 2 audit log entries all wired together with
+// placeholder ids like 'admin-id'/'user-id' that never correspond to a real
+// row in Postgres — gating them behind NEXT_PUBLIC_API_MODE turned out to be
+// fragile (depends on the flag being set correctly at *build* time), and a
+// misconfigured build kept sending them to /api/vfs, which then tried to
+// persist them to wiki_documents/users/teams and hit real FK constraints.
+// Removed outright rather than gated: real data only ever comes from the
+// server via loadFromServer(); a fresh workspace just starts empty.
+const INITIAL_DOCUMENTS: WikiDocument[] = [];
+const DEFAULT_USERS: User[] = [];
+const INITIAL_AUDIT_LOGS: AuditLog[] = [];
 
 const getStoredAuditLogs = (isClient: boolean): AuditLog[] => {
   if (!isClient) return INITIAL_AUDIT_LOGS;
@@ -375,17 +230,7 @@ const getStoredTemplates = (isClient: boolean): WikiTemplate[] => {
   }
 };
 
-const DEMO_TEAMS: Team[] = [
-  {
-    id: 'engineering-team',
-    name: 'Payit123',
-    members: [
-      { userId: 'admin-id', teamRole: 'MODERATOR' },
-      { userId: 'user-id', teamRole: 'EDITOR' },
-    ],
-  },
-];
-const INITIAL_TEAMS: Team[] = IS_LIVE_MODE ? [] : DEMO_TEAMS;
+const INITIAL_TEAMS: Team[] = [];
 
 const getStoredTeams = (isClient: boolean): Team[] => {
   if (!isClient) return INITIAL_TEAMS;
